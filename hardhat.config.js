@@ -9,11 +9,11 @@ module.exports = {
       chainId: 1337,
     },
     testnet: {
-      url: `${process.env.POLYGON_MUMBAI_TESTNET_URL}`,
+      url: process.env.POLYGON_MUMBAI_TESTNET_URL,
       accounts: [`${process.env.ACCOUNTS_PRIVATE_KEY}`],
     },
     mainnet: {
-      url: `${process.env.POLYGON_MAINNET_URL}`,
+      url: process.env.POLYGON_MAINNET_URL,
       accounts: [`${process.env.ACCOUNTS_PRIVATE_KEY}`],
     },
   },
