@@ -125,9 +125,14 @@ contract NFTMarketplace is ERC721URIStorage {
         approve(address(this), id);
 
         (bool ownerTransferSuccess, ) = payable(contractOwner).call{value: listingPrice}("");
-        require (ownerTransferSuccess, "Transfering ETH to contract owner failed");
-
         (bool sellerTransferSuccess, ) = payable(seller).call{value: msg.value}("");
-        require (sellerTransferSuccess, "Transfering ETH to seller failed");
+        
+        require (ownerTransferSuccess && sellerTransferSuccess, "Transfering ETH failed");
+    }
+
+    function withdraw() internal {
+        require(msg.sender == contractOwner, "Only the owner can call this function");
+        (bool success, ) = payable(contractOwner).call{value: address(this).balance}("");
+        require(success, "Transfer failed");
     }
 }
