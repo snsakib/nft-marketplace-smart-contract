@@ -8,7 +8,7 @@ contract NFTMarketplace is ERC721URIStorage {
     using Counters for Counters.Counter;
     Counters.Counter private _nftIds;
     address payable contractOwner;
-    uint256 listingPrice = 0.01 ether;
+    uint256 public listingPrice = 0.00000000001 ether; // 10000000
 
     struct NFT {
         uint256 id;
@@ -18,7 +18,7 @@ contract NFTMarketplace is ERC721URIStorage {
         bool isListed;
     }
 
-    event NFTListingSuccess(
+    event NFTListed(
         uint256 indexed id,
         address contractAddress,
         address owner,
@@ -32,10 +32,7 @@ contract NFTMarketplace is ERC721URIStorage {
         contractOwner = payable(msg.sender);
     }
 
-    function mintNFT(
-        string memory tokenURI,
-        uint256 price
-    ) public payable returns (uint256) {
+    function mintNFT(string memory tokenURI, uint256 price) public payable {
         _nftIds.increment();
         uint256 newNftId = _nftIds.current();
 
@@ -43,16 +40,11 @@ contract NFTMarketplace is ERC721URIStorage {
         _setTokenURI(newNftId, tokenURI);
 
         listNFT(newNftId, price);
-
-        return newNftId;
     }
 
     function listNFT(uint256 id, uint256 price) private {
-        require(
-            msg.value == listingPrice,
-            "Hopefully sending the correct price"
-        );
-        require(price > 0, "Make sure the price isn't negative");
+        require(msg.value == listingPrice, "Listing fee not paid");
+        require(price > 0, "Price must be greater than 0");
 
         _idToNFT[id] = NFT(
             id,
@@ -63,18 +55,17 @@ contract NFTMarketplace is ERC721URIStorage {
         );
 
         _transfer(msg.sender, address(this), id);
-        
-        emit NFTListingSuccess(id, address(this), msg.sender, price, true);
+
+        emit NFTListed(id, address(this), msg.sender, price, true);
     }
 
     function getAllNFTs() public view returns (NFT[] memory) {
         uint256 totalItemCount = _nftIds.current();
         NFT[] memory items = new NFT[](totalItemCount);
-        uint256 currentIndex = 0;
-        for (uint i = 0; i < totalItemCount; i++) {
+
+        for (uint256 i = 0; i < totalItemCount; i++) {
             NFT storage currentItem = _idToNFT[i + 1];
-            items[currentIndex] = currentItem;
-            currentIndex += 1;
+            items[i] = currentItem;
         }
         return items;
     }
@@ -82,39 +73,29 @@ contract NFTMarketplace is ERC721URIStorage {
     function getMyNFTs() public view returns (NFT[] memory) {
         uint256 totalItemCount = _nftIds.current();
         uint256 itemCount = 0;
-        uint256 currentIndex = 0;
-        
-        for (uint i = 0; i < totalItemCount; i++) {
-            if (
-                _idToNFT[i + 1].contractAddress == msg.sender ||
-                _idToNFT[i + 1].owner == msg.sender
-            ) {
+
+        for (uint256 i = 1; i < totalItemCount; i++) {
+            if (_idToNFT[i].owner == msg.sender) {
                 itemCount += 1;
             }
         }
 
         NFT[] memory items = new NFT[](itemCount);
 
-        for (uint i = 0; i < totalItemCount; i++) {
-            if (
-                _idToNFT[i + 1].contractAddress == msg.sender ||
-                _idToNFT[i + 1].owner == msg.sender
-            ) {
-                NFT storage currentItem = _idToNFT[i + 1];
-                items[currentIndex] = currentItem;
-                currentIndex += 1;
+        for (uint256 i = 1; i < totalItemCount; i++) {
+            if (_idToNFT[i].owner == msg.sender) {
+                NFT storage currentItem = _idToNFT[i];
+                items[i + 1] = currentItem;
             }
         }
+
         return items;
     }
 
-    function sellNFT(uint256 id) public payable {
+    function buyNFT(uint256 id) public payable {
         uint256 price = _idToNFT[id].price;
         address seller = _idToNFT[id].owner;
-        require(
-            msg.value == price,
-            "Please submit the asking price in order to complete the purchase"
-        );
+        require(msg.value == price, "Incorrect payment amount");
 
         _idToNFT[id].isListed = true;
         _idToNFT[id].owner = payable(msg.sender);
@@ -122,19 +103,16 @@ contract NFTMarketplace is ERC721URIStorage {
         _transfer(address(this), msg.sender, id);
         approve(address(this), id);
 
-        (bool ownerTransferSuccess, ) = payable(contractOwner).call{value: listingPrice}("");
-        (bool sellerTransferSuccess, ) = payable(seller).call{value: msg.value}("");
-        
-        require (ownerTransferSuccess && sellerTransferSuccess, "Transfering ETH failed");
-    }
+        (bool ownerTransferSuccess, ) = payable(contractOwner).call{
+            value: listingPrice
+        }("");
+        (bool sellerTransferSuccess, ) = payable(seller).call{value: msg.value}(
+            ""
+        );
 
-    function getListingPrice() public view returns (uint256) {
-        return listingPrice;
-    }
-
-    function withdraw() internal {
-        require(msg.sender == contractOwner, "Only the owner can call this function");
-        (bool success, ) = payable(contractOwner).call{value: address(this).balance}("");
-        require(success, "Transfer failed");
+        require(
+            ownerTransferSuccess && sellerTransferSuccess,
+            "Transfering ETH failed"
+        );
     }
 }
